@@ -1,20 +1,20 @@
 import { useAuth } from "@/hooks/use-auth";
 import { Loader2 } from "lucide-react";
-import { Redirect, Route, useLocation } from "wouter";
+import { Redirect, Route } from "wouter";
+
+interface ProtectedRouteProps {
+  path: string;
+  component: () => React.JSX.Element;
+  adminOnly?: boolean;
+}
 
 export function ProtectedRoute({
   path,
   component: Component,
-}: {
-  path: string;
-  component: () => React.JSX.Element;
-}) {
+  adminOnly = false,
+}: ProtectedRouteProps) {
   const { user, isLoading } = useAuth();
-  const [, setLocation] = useLocation();
 
-  // If the route is for admin only, check role
-  const isAdminRoute = path.includes("admin");
-  
   if (isLoading) {
     return (
       <Route path={path}>
@@ -33,11 +33,10 @@ export function ProtectedRoute({
     );
   }
 
-  // If the route is for admin but the user is not an admin
-  if (isAdminRoute && user.role !== "admin") {
+  if (adminOnly && user.role !== "admin") {
     return (
       <Route path={path}>
-        <Redirect to="/dashboard/student" />
+        <Redirect to="/dashboard" />
       </Route>
     );
   }

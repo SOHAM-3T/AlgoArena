@@ -5,8 +5,7 @@ import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
-import { User as SelectUser, insertUserSchema } from "@shared/schema";
-import { z } from "zod";
+import { User as SelectUser } from "@shared/schema";
 
 declare global {
   namespace Express {
@@ -31,12 +30,12 @@ async function comparePasswords(supplied: string, stored: string) {
 
 export function setupAuth(app: Express) {
   const sessionSettings: session.SessionOptions = {
-    secret: process.env.SESSION_SECRET || "algoarena-secret-key",
+    secret: process.env.SESSION_SECRET || "algarena-secret-key",
     resave: false,
     saveUninitialized: false,
     store: storage.sessionStore,
     cookie: {
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      maxAge: 24 * 60 * 60 * 1000, // 1 day
     }
   };
 
@@ -62,49 +61,58 @@ export function setupAuth(app: Express) {
     done(null, user);
   });
 
-  // Extended register schema with validation
-  const registerSchema = insertUserSchema.extend({
-    email: z.string().email("Please enter a valid email address"),
-    username: z.string().min(3, "Username must be at least 3 characters"),
-    password: z.string().min(6, "Password must be at least 6 characters"),
-    fullName: z.string().min(2, "Full name is required")
-  });
-
   app.post("/api/register", async (req, res, next) => {
     try {
-      const validatedData = registerSchema.parse(req.body);
+      const { username, email, fullName, password, role } = req.body;
+      
+      if (!username || !email || !fullName || !password) {
+        return res.status(400).json({ message: "All fields are required" });
+      }
       
       // Check if user already exists
-      const existingUser = await storage.getUserByUsername(validatedData.username);
+      const existingUser = await storage.getUserByUsername(username);
       if (existingUser) {
-        return res.status(400).send("Username already exists");
+        return res.status(400).json({ message: "Username already exists" });
       }
       
-      const existingEmail = await storage.getUserByEmail(validatedData.email);
+      const existingEmail = await storage.getUserByEmail(email);
       if (existingEmail) {
-        return res.status(400).send("Email already exists");
+        return res.status(400).json({ message: "Email already in use" });
       }
 
+      // Create user with hashed password
       const user = await storage.createUser({
-        ...validatedData,
-        password: await hashPassword(validatedData.password),
+        username,
+        email,
+        fullName,
+        password: await hashPassword(password),
+        role: role || "student", // Default to student if not specified
       });
 
+      // Login the user after registration
       req.login(user, (err) => {
         if (err) return next(err);
-        res.status(201).json(user);
+        // Return user data without password
+        const { password, ...userData } = user;
+        res.status(201).json(userData);
       });
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({ error: error.errors });
-      } else {
-        next(error);
-      }
+      next(error);
     }
   });
 
-  app.post("/api/login", passport.authenticate("local"), (req, res) => {
-    res.status(200).json(req.user);
+  app.post("/api/login", (req, res, next) => {
+    passport.authenticate("local", (err, user, info) => {
+      if (err) return next(err);
+      if (!user) return res.status(401).json({ message: "Invalid credentials" });
+      
+      req.login(user, (err) => {
+        if (err) return next(err);
+        // Return user data without password
+        const { password, ...userData } = user;
+        res.status(200).json(userData);
+      });
+    })(req, res, next);
   });
 
   app.post("/api/logout", (req, res, next) => {
@@ -116,34 +124,8 @@ export function setupAuth(app: Express) {
 
   app.get("/api/user", (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    res.json(req.user);
-  });
-
-  // API endpoints for testing/demo purposes
-  app.get("/api/contests", async (req, res) => {
-    try {
-      const contests = await storage.getContests();
-      res.json(contests);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch contests" });
-    }
-  });
-
-  app.get("/api/active-contests", async (req, res) => {
-    try {
-      const activeContests = await storage.getActiveContests();
-      res.json(activeContests);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch active contests" });
-    }
-  });
-
-  app.get("/api/leaderboard", async (req, res) => {
-    try {
-      const leaderboard = await storage.getLeaderboard();
-      res.json(leaderboard);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch leaderboard" });
-    }
+    // Return user data without password
+    const { password, ...userData } = req.user;
+    res.json(userData);
   });
 }

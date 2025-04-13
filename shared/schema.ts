@@ -1,9 +1,6 @@
-import { pgTable, text, serial, integer, boolean, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, varchar, json } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-
-// User role enum
-export const userRoleEnum = pgEnum('user_role', ['student', 'admin']);
 
 // User schema
 export const users = pgTable("users", {
@@ -12,9 +9,10 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   email: text("email").notNull().unique(),
   fullName: text("full_name").notNull(),
-  role: userRoleEnum("role").notNull().default("student"),
-  points: integer("points").notNull().default(0),
+  role: text("role").notNull().default("student"),
+  rating: integer("rating").notNull().default(1000),
   problemsSolved: integer("problems_solved").notNull().default(0),
+  contestsParticipated: integer("contests_participated").notNull().default(0),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -32,9 +30,9 @@ export const contests = pgTable("contests", {
   description: text("description").notNull(),
   startTime: timestamp("start_time").notNull(),
   endTime: timestamp("end_time").notNull(),
-  difficulty: text("difficulty").notNull(), // 'Beginner', 'Intermediate', 'Advanced'
-  status: text("status").notNull(), // 'Upcoming', 'Active', 'Completed'
-  createdBy: integer("created_by").notNull(), // admin id who created the contest
+  difficulty: text("difficulty").notNull().default("Intermediate"),
+  createdBy: integer("created_by").notNull(),
+  status: text("status").notNull().default("upcoming"), // upcoming, active, ended
 });
 
 export const insertContestSchema = createInsertSchema(contests).pick({
@@ -43,7 +41,6 @@ export const insertContestSchema = createInsertSchema(contests).pick({
   startTime: true,
   endTime: true,
   difficulty: true,
-  status: true,
   createdBy: true,
 });
 
@@ -53,15 +50,11 @@ export const problems = pgTable("problems", {
   contestId: integer("contest_id").notNull(),
   title: text("title").notNull(),
   description: text("description").notNull(),
-  difficulty: text("difficulty").notNull(), // 'Easy', 'Medium', 'Hard'
-  timeLimit: integer("time_limit").notNull(), // in seconds
-  memoryLimit: integer("memory_limit").notNull(), // in MB
-  inputFormat: text("input_format").notNull(),
-  outputFormat: text("output_format").notNull(),
-  sampleInput: text("sample_input").notNull(),
-  sampleOutput: text("sample_output").notNull(),
-  explanation: text("explanation"),
-  points: integer("points").notNull(),
+  difficulty: text("difficulty").notNull().default("Intermediate"),
+  timeLimit: integer("time_limit").notNull().default(2),
+  memoryLimit: integer("memory_limit").notNull().default(256),
+  testCases: json("test_cases").notNull(), // Array of input/output test cases
+  orderIndex: integer("order_index").notNull(), // A, B, C, D, E...
 });
 
 export const insertProblemSchema = createInsertSchema(problems).pick({
@@ -71,12 +64,8 @@ export const insertProblemSchema = createInsertSchema(problems).pick({
   difficulty: true,
   timeLimit: true,
   memoryLimit: true,
-  inputFormat: true,
-  outputFormat: true,
-  sampleInput: true,
-  sampleOutput: true,
-  explanation: true,
-  points: true,
+  testCases: true,
+  orderIndex: true,
 });
 
 // Submission schema
@@ -86,10 +75,10 @@ export const submissions = pgTable("submissions", {
   problemId: integer("problem_id").notNull(),
   contestId: integer("contest_id").notNull(),
   code: text("code").notNull(),
-  language: text("language").notNull(), // 'python', 'java', 'cpp', 'javascript'
-  status: text("status").notNull(), // 'Accepted', 'Wrong Answer', 'Time Limit Exceeded', etc.
-  score: integer("score").notNull(),
-  submittedAt: timestamp("submitted_at").notNull().defaultNow(),
+  language: text("language").notNull(),
+  status: text("status").notNull(), // "Accepted", "Wrong Answer", "Time Limit Exceeded", etc.
+  submitTime: timestamp("submit_time").notNull().defaultNow(),
+  executionTime: integer("execution_time"), // in milliseconds
 });
 
 export const insertSubmissionSchema = createInsertSchema(submissions).pick({
@@ -99,36 +88,33 @@ export const insertSubmissionSchema = createInsertSchema(submissions).pick({
   code: true,
   language: true,
   status: true,
-  score: true,
 });
 
-// Contest Participation schema
-export const contestParticipants = pgTable("contest_participants", {
+// Contest Registration schema
+export const contestRegistrations = pgTable("contest_registrations", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
   contestId: integer("contest_id").notNull(),
   registeredAt: timestamp("registered_at").notNull().defaultNow(),
-  score: integer("score").notNull().default(0),
-  rank: integer("rank"),
 });
 
-export const insertContestParticipantSchema = createInsertSchema(contestParticipants).pick({
+export const insertContestRegistrationSchema = createInsertSchema(contestRegistrations).pick({
   userId: true,
   contestId: true,
 });
 
-// Exported types
-export type User = typeof users.$inferSelect;
+// Type definitions
 export type InsertUser = z.infer<typeof insertUserSchema>;
+export type User = typeof users.$inferSelect;
 
-export type Contest = typeof contests.$inferSelect;
 export type InsertContest = z.infer<typeof insertContestSchema>;
+export type Contest = typeof contests.$inferSelect;
 
-export type Problem = typeof problems.$inferSelect;
 export type InsertProblem = z.infer<typeof insertProblemSchema>;
+export type Problem = typeof problems.$inferSelect;
 
-export type Submission = typeof submissions.$inferSelect;
 export type InsertSubmission = z.infer<typeof insertSubmissionSchema>;
+export type Submission = typeof submissions.$inferSelect;
 
-export type ContestParticipant = typeof contestParticipants.$inferSelect;
-export type InsertContestParticipant = z.infer<typeof insertContestParticipantSchema>;
+export type InsertContestRegistration = z.infer<typeof insertContestRegistrationSchema>;
+export type ContestRegistration = typeof contestRegistrations.$inferSelect;
