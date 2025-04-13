@@ -1,8 +1,28 @@
-# AlgoArena
-## 📘 Description
+# AlgoArena Platform
 
-**AlgoArena** is a full-stack competitive programming league manager designed for colleges and coding clubs. It enables real-time contests, secure code execution, automated judging, intelligent leaderboards, and advanced features like plagiarism detection and webcam proctoring.
+A Competitive Programming League Manager built using:
 
-Built with a focus on scalability, fairness, and academic integrity, AlgoArena empowers administrators to create dynamic programming contests while giving students a gamified and analytics-rich learning experience.
+- **Frontend:** React + Vite + TypeScript + Tailwind CSS
+- **Backend:** Node.js/Express (or Django if switched later)
+- **Database:** PostgreSQL
 
-Whether you're hosting a college hackathon, internal practice rounds, or class quizzes — AlgoArena has you covered.
+## Features
+- User Registration/Login
+- Faculty and Student Dashboards
+- Weekly quizzes from question pool
+- Percentile-based evaluation
+- Plagiarism detection (coming soon)
+
+## Getting Started
+
+```bash
+# Frontend
+cd client
+npm install
+npm run dev
+
+# Backend
+cd server
+npm install
+npm start
+
